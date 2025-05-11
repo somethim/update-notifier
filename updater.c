@@ -23,7 +23,7 @@ void notify_mode();
 void show_help(const char *program_name);
 
 // Function to execute a command and get its output
-char *execute_command(const char *cmd) {
+static char *execute_command(const char *cmd) {
     FILE *pipe = popen(cmd, "r");
     if (!pipe) {
         return nullptr;
@@ -52,7 +52,7 @@ char *execute_command(const char *cmd) {
 }
 
 // Function to count lines in a string
-int count_lines(const char *str) {
+static int count_lines(const char *str) {
     int count = 0;
     for (int i = 0; str[i]; i++) {
         if (str[i] == '\n') {
@@ -63,20 +63,20 @@ int count_lines(const char *str) {
 }
 
 // Function to check if a command exists
-bool command_exists(const char *cmd) {
+static bool command_exists(const char *cmd) {
     char command[256];
     snprintf(command, sizeof(command), "command -v %s &> /dev/null", cmd);
     return system(command) == 0;
 }
 
 // Function to check if a file exists
-bool file_exists(const char *path) {
+static bool file_exists(const char *path) {
     struct stat buffer;
     return stat(path, &buffer) == 0;
 }
 
 // Function to install zenity
-bool install_zenity() {
+static bool install_zenity() {
     printf("Zenity is required but not installed. Would you like to install it? (y/n): ");
     char response[10];
     if (fgets(response, sizeof(response), stdin) == NULL) {
@@ -103,13 +103,13 @@ bool install_zenity() {
 }
 
 // Function to check if systemd is available
-bool systemd_available() {
+static bool systemd_available() {
     return file_exists("/run/systemd/system") || file_exists("/var/run/systemd/system");
 }
 
 // Function to set up systemd timer
-bool setup_systemd_timer() {
-    char *home = getenv("HOME");
+static bool setup_systemd_timer() {
+    const char *home = getenv("HOME");
     if (!home) {
         fprintf(stderr, "Unable to get HOME directory\n");
         return false;
@@ -164,14 +164,14 @@ bool setup_systemd_timer() {
 }
 
 // Function to check and setup systemd service
-bool setup_systemd_service() {
+static bool setup_systemd_service() {
     if (!systemd_available()) {
         printf("Systemd is not available on this system. Using autostart instead.\n");
         setup_autostart(0);
         return false;
     }
 
-    char *home = getenv("HOME");
+    const char *home = getenv("HOME");
     if (!home) {
         fprintf(stderr, "Unable to get HOME directory\n");
         return false;
@@ -225,7 +225,7 @@ bool setup_systemd_service() {
 
 // Function to check updates for each package manager
 // Now returns a string with package names separated by newlines, and a summary for the dialog text
-char *get_update_packages(char *summary, const size_t summary_size) {
+static char *get_update_packages(char *summary, const size_t summary_size) {
     char *packages = malloc(BUFFER_SIZE);
     if (!packages) {
         summary[0] = '\0';
@@ -305,13 +305,13 @@ char *get_update_packages(char *summary, const size_t summary_size) {
 }
 
 // Function to create a desktop file
-void create_desktop_file(const int system_wide) {
+static void create_desktop_file(const int system_wide) {
     char desktop_file[PATH_MAX_SIZE];
     char chmod_cmd[PATH_MAX_SIZE + 32];
     if (system_wide) {
         snprintf(desktop_file, sizeof(desktop_file), "/usr/share/applications/package-updater.desktop");
     } else {
-        char *home = getenv("HOME");
+        const char *home = getenv("HOME");
         if (!home) {
             fprintf(stderr, "Unable to get HOME directory\n");
             return;
@@ -354,12 +354,12 @@ void create_desktop_file(const int system_wide) {
 }
 
 // Function to set up autostart
-void setup_autostart(int system_wide) {
+static void setup_autostart(int system_wide) {
     char autostart_file[PATH_MAX_SIZE];
     if (system_wide) {
         snprintf(autostart_file, sizeof(autostart_file), "/etc/xdg/autostart/package-updater.desktop");
     } else {
-        char *home = getenv("HOME");
+        const char *home = getenv("HOME");
         if (!home) {
             fprintf(stderr, "Unable to get HOME directory\n");
             return;
@@ -401,7 +401,7 @@ void setup_autostart(int system_wide) {
 }
 
 // Function to display a notification using zenity
-void notify_mode() {
+static void notify_mode() {
     char *updates = get_update_packages(nullptr, 0);
     if (updates) {
         system(
@@ -420,7 +420,7 @@ void notify_mode() {
 }
 
 // Main update dialog function
-void run_update_dialog() {
+static void run_update_dialog() {
     while (1) {
         char summary[1024];
         char *packages = get_update_packages(summary, sizeof(summary));
@@ -488,7 +488,7 @@ void run_update_dialog() {
 }
 
 // Display help message
-void show_help(const char *program_name) {
+static void show_help(const char *program_name) {
     printf("Usage: %s [OPTION] [--system-wide]\n", program_name);
     printf("Package Update Notification Program\n");
     printf("\n");
@@ -504,7 +504,7 @@ void show_help(const char *program_name) {
 }
 
 // Function to initialize and check requirements
-bool initialize_updater() {
+static bool initialize_updater() {
     printf("Initializing Package Update Checker...\n");
 
     // Check for zenity
