@@ -14,9 +14,9 @@
 // Forward declarations
 void run_update_dialog();
 
-void setup_autostart();
+void setup_autostart(int system_wide);
 
-void create_desktop_file();
+void create_desktop_file(int system_wide);
 
 void notify_mode();
 
@@ -167,7 +167,7 @@ bool setup_systemd_timer() {
 bool setup_systemd_service() {
     if (!systemd_available()) {
         printf("Systemd is not available on this system. Using autostart instead.\n");
-        setup_autostart();
+        setup_autostart(0);
         return false;
     }
 
@@ -305,35 +305,38 @@ char *get_update_packages(char *summary, const size_t summary_size) {
 }
 
 // Function to create a desktop file
-void create_desktop_file() {
-    char *home = getenv("HOME");
-    if (!home) {
-        fprintf(stderr, "Unable to get HOME directory\n");
-        return;
-    }
-
-    char desktop_dir[PATH_MAX_SIZE];
+void create_desktop_file(const int system_wide) {
     char desktop_file[PATH_MAX_SIZE];
     char chmod_cmd[PATH_MAX_SIZE + 32];
-
-    if (strlen(home) + strlen("/.local/share/applications") + 1 > sizeof(desktop_dir)) {
-        fprintf(stderr, "Path too long!\n");
-        return;
+    if (system_wide) {
+        snprintf(desktop_file, sizeof(desktop_file), "/usr/share/applications/package-updater.desktop");
+    } else {
+        char *home = getenv("HOME");
+        if (!home) {
+            fprintf(stderr, "Unable to get HOME directory\n");
+            return;
+        }
+        char desktop_dir[PATH_MAX_SIZE];
+        if (strlen(home) + strlen("/.local/share/applications") + 1 > sizeof(desktop_dir)) {
+            fprintf(stderr, "Path too long!\n");
+            return;
+        }
+        snprintf(desktop_dir, sizeof(desktop_dir), "%s/.local/share/applications", home);
+        if (strlen(desktop_dir) + strlen("/package-updater.desktop") + 1 > sizeof(desktop_file)) {
+            fprintf(stderr, "Path too long!\n");
+            return;
+        }
+        snprintf(desktop_file, sizeof(desktop_file), "%s/package-updater.desktop", desktop_dir);
+        // Ensure directory exists
+        char mkdir_cmd[PATH_MAX_SIZE + 32];
+        snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p %s", desktop_dir);
+        system(mkdir_cmd);
     }
-    snprintf(desktop_dir, sizeof(desktop_dir), "%s/.local/share/applications", home);
-
-    if (strlen(desktop_dir) + strlen("/package-updater.desktop") + 1 > sizeof(desktop_file)) {
-        fprintf(stderr, "Path too long!\n");
-        return;
-    }
-    snprintf(desktop_file, sizeof(desktop_file), "%s/package-updater.desktop", desktop_dir);
-
     FILE *file = fopen(desktop_file, "w");
     if (!file) {
         fprintf(stderr, "Unable to create desktop file\n");
         return;
     }
-
     fprintf(file, "[Desktop Entry]\n");
     fprintf(file, "Version=1.0\n");
     fprintf(file, "Name=Package Updater\n");
@@ -344,44 +347,44 @@ void create_desktop_file() {
     fprintf(file, "Type=Application\n");
     fprintf(file, "Categories=System;Utility;\n");
     fprintf(file, "Keywords=update;package;system;\n");
-
     fclose(file);
-
     snprintf(chmod_cmd, sizeof(chmod_cmd), "chmod +x %s", desktop_file);
     system(chmod_cmd);
-
     printf("Desktop file created at: %s\n", desktop_file);
 }
 
 // Function to set up autostart
-void setup_autostart() {
-    char *home = getenv("HOME");
-    if (!home) {
-        fprintf(stderr, "Unable to get HOME directory\n");
-        return;
-    }
-
-    char autostart_dir[PATH_MAX_SIZE];
+void setup_autostart(int system_wide) {
     char autostart_file[PATH_MAX_SIZE];
-
-    if (strlen(home) + strlen("/.config/autostart") + 1 > sizeof(autostart_dir)) {
-        fprintf(stderr, "Path too long!\n");
-        return;
+    if (system_wide) {
+        snprintf(autostart_file, sizeof(autostart_file), "/etc/xdg/autostart/package-updater.desktop");
+    } else {
+        char *home = getenv("HOME");
+        if (!home) {
+            fprintf(stderr, "Unable to get HOME directory\n");
+            return;
+        }
+        char autostart_dir[PATH_MAX_SIZE];
+        if (strlen(home) + strlen("/.config/autostart") + 1 > sizeof(autostart_dir)) {
+            fprintf(stderr, "Path too long!\n");
+            return;
+        }
+        snprintf(autostart_dir, sizeof(autostart_dir), "%s/.config/autostart", home);
+        if (strlen(autostart_dir) + strlen("/package-updater.desktop") + 1 > sizeof(autostart_file)) {
+            fprintf(stderr, "Path too long!\n");
+            return;
+        }
+        snprintf(autostart_file, sizeof(autostart_file), "%s/package-updater.desktop", autostart_dir);
+        // Ensure directory exists
+        char mkdir_cmd[PATH_MAX_SIZE + 32];
+        snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p %s", autostart_dir);
+        system(mkdir_cmd);
     }
-    snprintf(autostart_dir, sizeof(autostart_dir), "%s/.config/autostart", home);
-
-    if (strlen(autostart_dir) + strlen("/package-updater.desktop") + 1 > sizeof(autostart_file)) {
-        fprintf(stderr, "Path too long!\n");
-        return;
-    }
-    snprintf(autostart_file, sizeof(autostart_file), "%s/package-updater.desktop", autostart_dir);
-
     FILE *file = fopen(autostart_file, "w");
     if (!file) {
         fprintf(stderr, "Unable to create autostart file\n");
         return;
     }
-
     fprintf(file, "[Desktop Entry]\n");
     fprintf(file, "Version=1.0\n");
     fprintf(file, "Name=Package Updater\n");
@@ -393,9 +396,7 @@ void setup_autostart() {
     fprintf(file, "Categories=System;Utility;\n");
     fprintf(file, "Keywords=update;package;system;\n");
     fprintf(file, "X-GNOME-Autostart-enabled=true\n");
-
     fclose(file);
-
     printf("Autostart entry created at: %s\n", autostart_file);
 }
 
@@ -488,14 +489,16 @@ void run_update_dialog() {
 
 // Display help message
 void show_help(const char *program_name) {
-    printf("Usage: %s [OPTION]\n", program_name);
+    printf("Usage: %s [OPTION] [--system-wide]\n", program_name);
     printf("Package Update Notification Program\n");
     printf("\n");
     printf("Options:\n");
-    printf("  --install-desktop  Create desktop file in applications menu\n");
-    printf("  --setup-autostart  Configure program to run at startup\n");
-    printf("  --notify-only      Show notification if updates available\n");
-    printf("  --help             Display this help\n");
+    printf("  --install-desktop      Create desktop file in applications menu\n");
+    printf("  --setup-autostart      Configure program to run at startup\n");
+    printf("  --notify-only          Show notification if updates available\n");
+    printf("  --help                 Display this help\n");
+    printf(
+        "  --system-wide          (with --install-desktop or --setup-autostart) create entry for all users (root only)\n");
     printf("\n");
     printf("With no options, runs the interactive update dialog.\n");
 }
@@ -558,25 +561,35 @@ int main(const int argc, char *argv[]) {
     setenv("XDG_RUNTIME_DIR", xdg_runtime_dir, 1);
     setenv("DISPLAY", ":0", 1);
 
+    // Parse system-wide flag
+    int system_wide = 0;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--system-wide") == 0) {
+            system_wide = 1;
+        }
+    }
+
     // Handle command line options
     if (argc > 1) {
-        if (strcmp(argv[1], "--install-desktop") == 0) {
-            create_desktop_file();
-            return 0;
+        for (int i = 1; i < argc; ++i) {
+            if (strcmp(argv[i], "--install-desktop") == 0) {
+                create_desktop_file(system_wide);
+                return 0;
+            }
+            if (strcmp(argv[i], "--setup-autostart") == 0) {
+                setup_autostart(system_wide);
+                return 0;
+            }
+            if (strcmp(argv[i], "--notify-only") == 0) {
+                notify_mode();
+                return 0;
+            }
+            if (strcmp(argv[i], "--help") == 0) {
+                show_help(argv[0]);
+                return 0;
+            }
         }
-        if (strcmp(argv[1], "--setup-autostart") == 0) {
-            setup_autostart();
-            return 0;
-        }
-        if (strcmp(argv[1], "--notify-only") == 0) {
-            notify_mode();
-            return 0;
-        }
-        if (strcmp(argv[1], "--help") == 0) {
-            show_help(argv[0]);
-            return 0;
-        }
-        fprintf(stderr, "Unknown option: %s\n", argv[1]);
+        fprintf(stderr, "Unknown option.\n");
         show_help(argv[0]);
         return 1;
     }
