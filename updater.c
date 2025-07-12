@@ -12,15 +12,15 @@
 #define BUFFER_SIZE 8192
 
 // Forward declarations
-void run_update_dialog();
+static void run_update_dialog();
 
-void setup_autostart(int system_wide);
+static void setup_autostart(int system_wide);
 
-void create_desktop_file(int system_wide);
+static void create_desktop_file(int system_wide);
 
-void notify_mode();
+static void notify_mode();
 
-void show_help(const char *program_name);
+static void show_help(const char *program_name);
 
 // Function to execute a command and get its output
 static char *execute_command(const char *cmd) {
